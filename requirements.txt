@@ -1,0 +1,4 @@
+redis>=5.0
+fakeredis>=2.20
+# optional: enable LLM extraction by setting OPENAI_API_KEY
+openai>=1.0
