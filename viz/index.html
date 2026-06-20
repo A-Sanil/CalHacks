@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AOE Routes</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { height: 100%; overflow: hidden; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; display: flex; flex-direction: column; }
+    header { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem; background: #161b22; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+    header h1 { font-size: 0.9rem; }
+    #status { flex: 1; text-align: center; font-size: 0.85rem; color: #8b949e; }
+    #status.on { color: #3fb950; } #status.alert { color: #f85149; }
+    #clock { font-size: 0.85rem; color: #58a6ff; min-width: 4rem; text-align: right; }
+    #progress { font-size: 0.75rem; color: #8b949e; min-width: 5rem; text-align: right; }
+    #map { flex: 1; min-height: 300px; position: relative; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    footer { display: flex; gap: 0.75rem; align-items: center; padding: 0.5rem 1rem; background: #161b22; border-top: 1px solid #30363d; flex-shrink: 0; }
+    button { padding: 0.45rem 0.9rem; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; cursor: pointer; font-size: 0.85rem; }
+    button.primary { background: #238636; border-color: #238636; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #legend { font-size: 0.72rem; color: #8b949e; flex: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AOE Routes</h1>
+    <div id="status">Loading…</div>
+    <div id="progress"></div>
+    <div id="clock">0:00</div>
+  </header>
+  <section id="map"><canvas id="canvas"></canvas></section>
+  <footer>
+    <button class="primary" id="runBtn">Run Simulation</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <div id="legend">Done=bright green · Todo=dashed · Red=blocked · Thick edge=slow terrain</div>
+  </footer>
+
+  <script>
+    const API = new URLSearchParams(location.search).get('api')
+      || (location.port && location.port !== '8000' ? 'http://localhost:8000' : location.origin);
+
+    const COLS = 9, ROWS = 7, N = COLS * ROWS; // 63 nodes
+    const START = 0;
+    const TARGET_IDS = [8, 17, 26, 35, 44, 53, 62, 31, 40, 14];
+    const WALK_SPEED = 35;
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const statusEl = document.getElementById('status');
+    const clockEl = document.getElementById('clock');
+    const progressEl = document.getElementById('progress');
+
+    let coords = [], elevation = [], matrix = [], edges = [];
+    let blocked = new Set(), slowEdges = new Map(); // slowEdges: key -> multiplier
+    let fireZones = [];
+    let routes = [], walker = null;
+    let allModifiers = [];
+    let visitedNodes = new Set();
+    let servedTargets = new Set();
+    let completedPrefix = [];
+    let simTime = 0, running = false, lastFrame = 0;
+    let hazardQueue = [], solving = false, solverOk = false;
+    let hazardStep = 0;
+
+    const edgeKey = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+    const setStatus = (m, c = '') => { statusEl.textContent = m; statusEl.className = c; };
+
+    // --- map generation: grid + position-dependent weights ---
+    function initMap() {
+      coords = []; elevation = [];
+      const rng = (i) => Math.sin(i * 127.1 + 42.7) * 43758.5453 % 1;
+
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const id = r * COLS + c;
+          coords[id] = [c * 22 + rng(id) * 6, r * 20 + rng(id + 99) * 6];
+          // elevation rises toward top-right (mountain) — affects edge cost
+          elevation[id] = 0.3 + (c / COLS) * 0.4 + (1 - r / ROWS) * 0.5 + rng(id) * 0.15;
+        }
+      }
+
+      edges = [];
+      const addEdge = (a, b) => {
+        if (a < 0 || b < 0 || a >= N || b >= N) return;
+        if (!edges.some(([x, y]) => edgeKey(x, y) === edgeKey(a, b)))
+          edges.push([a, b]);
+      };
+
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const id = r * COLS + c;
+          if (c + 1 < COLS) addEdge(id, id + 1);
+          if (r + 1 < ROWS) addEdge(id, id + COLS);
+          if (c + 1 < COLS && r + 1 < ROWS && rng(id) > 0.55) addEdge(id, id + COLS + 1);
+          if (c > 0 && r + 1 < ROWS && rng(id + 50) > 0.6) addEdge(id, id + COLS - 1);
+        }
+      }
+
+      rebuildMatrix();
+      blocked.clear();
+      slowEdges.clear();
+      fireZones = [];
+      allModifiers = [];
+    }
+
+    function edgeMidpoint(a, b) {
+      return [(coords[a][0] + coords[b][0]) / 2, (coords[a][1] + coords[b][1]) / 2];
+    }
+
+    function fireProximityFactor(a, b) {
+      const [mx, my] = edgeMidpoint(a, b);
+      let f = 1;
+      for (const z of fireZones) {
+        const d = Math.hypot(mx - z.x, my - z.y);
+        if (d < z.r) f *= 1 + (1 - d / z.r) * 3;
+      }
+      return f;
+    }
+
+    function baseWeight(a, b) {
+      const dist = Math.hypot(coords[b][0] - coords[a][0], coords[b][1] - coords[a][1]);
+      const slope = 1 + Math.abs(elevation[a] - elevation[b]) * 2.2;
+      const terrain = 1 + (elevation[a] + elevation[b]) * 0.35;
+      return dist * slope * terrain * fireProximityFactor(a, b);
+    }
+
+    function rebuildMatrix() {
+      matrix = Array.from({ length: N }, () => Array(N).fill(1e9));
+      for (let i = 0; i < N; i++) matrix[i][i] = 0;
+      for (const [a, b] of edges) {
+        let w = baseWeight(a, b);
+        const k = edgeKey(a, b);
+        if (slowEdges.has(k)) w *= slowEdges.get(k);
+        matrix[a][b] = matrix[b][a] = w;
+      }
+      for (const k of blocked) {
+        const [a, b] = k.split('-').map(Number);
+        matrix[a][b] = matrix[b][a] = 1e9;
+      }
+    }
+
+    function edgeCost(a, b) {
+      const k = edgeKey(a, b);
+      if (blocked.has(k)) return Infinity;
+      return matrix[a][b];
+    }
+
+    function normWeight(a, b) {
+      const w = edgeCost(a, b);
+      return isFinite(w) ? Math.min(w / 80, 1) : 0;
+    }
+
+    // --- hazards schedule (many events over ~90s sim) ---
+    const HAZARD_SCRIPT = [
+      { at: 5,  edges: [[10, 11], [11, 12]], mult: 1000, reason: 'fire front', fireNode: 11 },
+      { at: 12, edges: [[19, 20], [20, 21]], mult: 1000, reason: 'fire spread east', fireNode: 20 },
+      { at: 20, edges: [[28, 29], [29, 30]], mult: 1000, reason: 'fire jump', fireNode: 29 },
+      { at: 28, edges: [[3, 4], [4, 5]], mult: 1000, reason: 'road collapse', fireNode: null },
+      { at: 35, edges: [[36, 37], [45, 46]], mult: 1000, reason: 'mudslide', fireNode: null },
+      { at: 42, edges: [[14, 15], [15, 16]], mult: 2.2, reason: 'heavy smoke', fireNode: null },
+      { at: 48, edges: [[50, 51], [51, 52]], mult: 1000, reason: 'bridge out', fireNode: null },
+      { at: 55, edges: [[22, 23], [23, 24]], mult: 1.7, reason: 'debris', fireNode: null },
+      { at: 62, edges: [[40, 41], [49, 50]], mult: 1000, reason: 'secondary fire', fireNode: 41 },
+    ];
+
+    function buildHazardQueue() {
+      return HAZARD_SCRIPT.map(h => ({
+        ...h,
+        fire: h.fireNode != null
+          ? [{ x: coords[h.fireNode][0], y: coords[h.fireNode][1], r: 32 }]
+          : null,
+      }));
+    }
+
+    function applyHazard(h) {
+      for (const [a, b] of h.edges) {
+        const k = edgeKey(a, b);
+        if (h.mult >= 500) blocked.add(k);
+        else slowEdges.set(k, h.mult);
+        allModifiers.push({ edge: [a, b], multiplier: h.mult, reason: h.reason });
+      }
+      if (h.fire) fireZones.push(...h.fire);
+      rebuildMatrix();
+    }
+
+    // --- visit-aware routing ---
+    function currentNode() {
+      if (!walker) return START;
+      if (walker.seg >= walker.path.length - 1)
+        return walker.path[walker.path.length - 1];
+      return walker.path[walker.seg];
+    }
+
+    function recordVisited(node) {
+      visitedNodes.add(node);
+      if (TARGET_IDS.includes(node)) servedTargets.add(node);
+    }
+
+    function routingCost(a, b, exempt) {
+      let c = edgeCost(a, b);
+      if (!isFinite(c)) return Infinity;
+      if (visitedNodes.has(b) && !exempt.has(b)) c *= 12;
+      return c;
+    }
+
+    function dijkstra(from, to, exempt) {
+      const dist = Array(N).fill(Infinity);
+      const prev = Array(N).fill(-1);
+      dist[from] = 0;
+      const seen = Array(N).fill(false);
+
+      for (let k = 0; k < N; k++) {
+        let u = -1, best = Infinity;
+        for (let i = 0; i < N; i++) {
+          if (!seen[i] && dist[i] < best) { best = dist[i]; u = i; }
+        }
+        if (u < 0 || u === to) break;
+        seen[u] = true;
+        for (const [a, b] of edges) {
+          const v = a === u ? b : b === u ? a : -1;
+          if (v < 0) continue;
+          const nd = dist[u] + routingCost(u, v, exempt);
+          if (nd < dist[v]) { dist[v] = nd; prev[v] = u; }
+        }
+      }
+
+      if (!isFinite(dist[to])) return null;
+      const path = [];
+      for (let at = to; at >= 0; at = prev[at]) path.push(at);
+      path.reverse();
+      return path;
+    }
+
+    function localRoute(start, targets, exempt) {
+      const remaining = new Set(targets);
+      const path = [start];
+      let cur = start;
+      while (remaining.size) {
+        let best = null, bestPath = null, bestD = Infinity;
+        for (const n of remaining) {
+          const leg = dijkstra(cur, n, exempt);
+          if (!leg) continue;
+          const d = leg.reduce((s, node, i) =>
+            i === 0 ? 0 : s + routingCost(leg[i - 1], node, exempt), 0);
+          if (d < bestD) { bestD = d; best = n; bestPath = leg; }
+        }
+        if (!best || !bestPath) { remaining.delete([...remaining][0]); continue; }
+        path.push(...bestPath.slice(1));
+        cur = best;
+        remaining.delete(best);
+      }
+      if (cur !== START && servedTargets.size === TARGET_IDS.length) {
+        const back = dijkstra(cur, START, exempt);
+        if (back) path.push(...back.slice(1));
+      }
+      return path;
+    }
+
+    function routingState() {
+      const cur = currentNode();
+      const remaining = TARGET_IDS.filter(t => !servedTargets.has(t));
+      const exempt = new Set([cur, ...remaining, START]);
+      return { cur, remaining, exempt };
+    }
+
+    function makePayload() {
+      const { cur, remaining, exempt } = routingState();
+      return {
+        timestamp: new Date().toISOString(),
+        disaster_state: hazardStep === 0 ? 'stable' : `escalating (${allModifiers.length} hazards)`,
+        vehicles: [{ id: 'V1', type: 'ground', capacity: 50, start_node: cur }],
+        target_nodes: remaining.map((id, i) => ({
+          id, priority: 10 - i * 0.5, demand: 2, time_window: [0, 9999],
+        })),
+        visited_nodes: [...visitedNodes].filter(n => !exempt.has(n)),
+        dynamic_edge_modifiers: allModifiers.map(m => ({ ...m })),
+        baseline_matrix: matrix,
+        node_coords: coords,
+      };
+    }
+
+    function collapse(path) {
+      const out = [path[0]];
+      for (let i = 1; i < path.length; i++)
+        if (path[i] !== out[out.length - 1]) out.push(path[i]);
+      return out;
+    }
+
+    function trimForwardPath(path, cur) {
+      let p = collapse(path);
+      if (!p.length) return [cur];
+      if (p[0] !== cur) {
+        const i = p.indexOf(cur);
+        p = i >= 0 ? p.slice(i) : p;
+      }
+      // Strip loops back to START before all targets done
+      const cleaned = [p[0]];
+      for (let i = 1; i < p.length; i++) {
+        const n = p[i];
+        if (n === START && servedTargets.size < TARGET_IDS.length && i < p.length - 1) continue;
+        cleaned.push(n);
+      }
+      p = cleaned;
+      while (p.length > 1 && p[p.length - 1] === START && servedTargets.size < TARGET_IDS.length)
+        p.pop();
+      return p.length ? p : [cur];
+    }
+
+    function displayPath(forward) {
+      return collapse([...completedPrefix, ...forward.slice(1)]);
+    }
+
+    function applyRoute(path, label) {
+      const cur = currentNode();
+      const { exempt } = routingState();
+      let forward = trimForwardPath(path, cur);
+
+      // Ensure first step is reachable
+      if (forward.length > 1 && !isFinite(edgeCost(forward[0], forward[1]))) {
+        const { remaining } = routingState();
+        forward = localRoute(cur, remaining, exempt);
+      }
+
+      routes = [{ id: 'V1', path: displayPath(forward), color: '#3fb950' }];
+      walker = walker || { distDone: 0 };
+      walker.path = forward;
+      walker.seg = 0;
+      walker.t = 0;
+      setStatus(label, blocked.size ? 'alert' : 'on');
+    }
+
+    async function solve(label) {
+      rebuildMatrix();
+      const payload = makePayload();
+
+      if (solverOk) {
+        try {
+          const res = await fetch(`${API}/solve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const r = (data.routes || [])[0];
+            if (r?.path?.length > 1) {
+              applyRoute(r.path, label + ' (solver)');
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+      const { cur, remaining, exempt } = routingState();
+      applyRoute(localRoute(cur, remaining, exempt), label + ' (local)');
+    }
+
+    function totalPathDist(path) {
+      let d = 0;
+      for (let i = 0; i < path.length - 1; i++) {
+        const c = edgeCost(path[i], path[i + 1]);
+        if (isFinite(c)) d += c;
+      }
+      return d;
+    }
+
+    function advanceWalker(dt) {
+      if (!walker || walker.path.length < 2) return;
+      if (walker.seg >= walker.path.length - 1) return;
+
+      const a = walker.path[walker.seg], b = walker.path[walker.seg + 1];
+      const len = edgeCost(a, b);
+
+      if (!isFinite(len)) {
+        if (!solving) {
+          solving = true;
+          solve('Blocked — finding detour').finally(() => { solving = false; });
+        }
+        return;
+      }
+
+      let rem = WALK_SPEED * dt;
+      const need = (1 - walker.t) * len;
+      if (rem >= need) {
+        walker.distDone += need;
+        const arrived = b;
+        walker.seg++;
+        walker.t = 0;
+        recordVisited(arrived);
+        if (completedPrefix[completedPrefix.length - 1] !== arrived)
+          completedPrefix.push(arrived);
+        routes[0].path = displayPath(walker.path);
+      } else {
+        walker.t += rem / len;
+        walker.distDone += rem;
+      }
+    }
+
+    function walkerPos() {
+      if (!walker) return null;
+      if (walker.seg >= walker.path.length - 1) {
+        const n = walker.path[walker.path.length - 1];
+        return { x: coords[n][0], y: coords[n][1], angle: 0 };
+      }
+      const a = walker.path[walker.seg], b = walker.path[walker.seg + 1];
+      const t = walker.t;
+      return {
+        x: coords[a][0] + (coords[b][0] - coords[a][0]) * t,
+        y: coords[a][1] + (coords[b][1] - coords[a][1]) * t,
+        angle: Math.atan2(coords[b][1] - coords[a][1], coords[b][0] - coords[a][0]),
+      };
+    }
+
+    function routeProgress() {
+      return (servedTargets.size / TARGET_IDS.length) * 100;
+    }
+
+    // --- draw ---
+    function resize() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = Math.max(rect.width, 400) * devicePixelRatio;
+      canvas.height = Math.max(rect.height, 300) * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+
+    function xy(x, y) {
+      const xs = coords.map(c => c[0]), ys = coords.map(c => c[1]);
+      const pad = 40, w = canvas.width / devicePixelRatio - pad * 2;
+      const h = canvas.height / devicePixelRatio - pad * 2;
+      return [
+        pad + ((x - Math.min(...xs)) / (Math.max(...xs) - Math.min(...xs) || 1)) * w,
+        pad + ((y - Math.min(...ys)) / (Math.max(...ys) - Math.min(...ys) || 1)) * h,
+      ];
+    }
+
+    function drawLine(x1, y1, x2, y2, color, w, alpha, dash) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.globalAlpha = alpha;
+      ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+
+    function draw() {
+      const W = canvas.width / devicePixelRatio, H = canvas.height / devicePixelRatio;
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(0, 0, W, H);
+
+      // fire glow zones
+      for (const z of fireZones) {
+        const [px, py] = xy(z.x, z.y);
+        const gr = ctx.createRadialGradient(px, py, 0, px, py, z.r * 2.5);
+        gr.addColorStop(0, 'rgba(248,81,73,0.25)');
+        gr.addColorStop(1, 'rgba(248,81,73,0)');
+        ctx.fillStyle = gr;
+        ctx.beginPath();
+        ctx.arc(px, py, z.r * 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const routePath = routes[0]?.path || [];
+
+      // completed trail
+      for (let i = 0; i < completedPrefix.length - 1; i++) {
+        const a = completedPrefix[i], b = completedPrefix[i + 1];
+        if (!coords[a] || !coords[b]) continue;
+        const [x1, y1] = xy(coords[a][0], coords[a][1]);
+        const [x2, y2] = xy(coords[b][0], coords[b][1]);
+        drawLine(x1, y1, x2, y2, '#3fb950', 5, 1);
+      }
+
+      // forward path (where walker is going)
+      const fwd = walker?.path || [];
+      const seg = walker?.seg ?? 0;
+      const wt = walker?.t ?? 0;
+      for (let i = 0; i < fwd.length - 1; i++) {
+        const a = fwd[i], b = fwd[i + 1];
+        if (!coords[a] || !coords[b]) continue;
+        const [x1, y1] = xy(coords[a][0], coords[a][1]);
+        const [x2, y2] = xy(coords[b][0], coords[b][1]);
+        if (i < seg) drawLine(x1, y1, x2, y2, '#3fb950', 5, 1);
+        else if (i === seg) {
+          const mx = x1 + (x2 - x1) * wt, my = y1 + (y2 - y1) * wt;
+          drawLine(x1, y1, mx, my, '#3fb950', 6, 1);
+          drawLine(mx, my, x2, y2, '#3fb950', 3, 0.35, [4, 6]);
+        } else drawLine(x1, y1, x2, y2, '#3fb950', 3, 0.3, [4, 6]);
+      }
+
+      const routeEdgeSet = new Set();
+      for (let i = 0; i < routePath.length - 1; i++) routeEdgeSet.add(edgeKey(routePath[i], routePath[i + 1]));
+
+      // all roads — width = position-dependent cost
+      for (const [a, b] of edges) {
+        const k = edgeKey(a, b);
+        const [x1, y1] = xy(coords[a][0], coords[a][1]);
+        const [x2, y2] = xy(coords[b][0], coords[b][1]);
+        if (blocked.has(k)) {
+          drawLine(x1, y1, x2, y2, '#f85149', 4, 0.6 + 0.3 * Math.sin(Date.now() / 120), [5, 5]);
+          continue;
+        }
+        const nw = normWeight(a, b);
+        const onRoute = routeEdgeSet.has(k);
+        if (onRoute) continue; // drawn above
+        drawLine(x1, y1, x2, y2, '#484f58', 1 + nw * 3, 0.35 + nw * 0.35);
+      }
+
+      // nodes
+      for (let i = 0; i < N; i++) {
+        const [px, py] = xy(coords[i][0], coords[i][1]);
+        const target = TARGET_IDS.includes(i);
+        const visited = visitedNodes.has(i);
+        ctx.fillStyle = target ? (servedTargets.has(i) ? '#238636' : '#f0883e') : visited ? '#30363d' : '#484f58';
+        ctx.beginPath();
+        ctx.arc(px, py, target ? 7 : 4, 0, Math.PI * 2);
+        ctx.fill();
+        if (target) {
+          ctx.fillStyle = '#fff';
+          ctx.font = '9px sans-serif';
+          ctx.fillText(i, px + 8, py + 3);
+        }
+      }
+
+      // breadcrumb trail
+      for (const n of completedPrefix) {
+        const [px, py] = xy(coords[n][0], coords[n][1]);
+        ctx.fillStyle = 'rgba(63,185,80,0.4)';
+        ctx.beginPath();
+        ctx.arc(px, py, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // walker (person icon)
+      const pos = walkerPos();
+      if (pos && running) {
+        const [px, py] = xy(pos.x, pos.y);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(pos.angle);
+        ctx.fillStyle = 'rgba(63,185,80,0.3)';
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#3fb950';
+        ctx.beginPath();
+        ctx.moveTo(12, 0);
+        ctx.lineTo(-8, -7);
+        ctx.lineTo(-4, 0);
+        ctx.lineTo(-8, 7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (!lastFrame) lastFrame = now;
+      const dt = Math.min(0.05, (now - lastFrame) / 1000);
+      lastFrame = now;
+
+      if (running) {
+        simTime += dt;
+        clockEl.textContent = `${Math.floor(simTime / 60)}:${String(Math.floor(simTime % 60)).padStart(2, '0')}`;
+        progressEl.textContent = `${routeProgress().toFixed(0)}%`;
+
+        advanceWalker(dt);
+
+        if (!solving && hazardQueue.length && simTime >= hazardQueue[0].at) {
+          const h = hazardQueue.shift();
+          hazardStep++;
+          applyHazard(h);
+          setStatus(`⚠ ${h.reason} — re-routing…`, 'alert');
+          solving = true;
+          solve(h.reason).finally(() => { solving = false; });
+        }
+
+        if (walker && !solving) {
+          const atEnd = walker.seg >= walker.path.length - 1;
+          const allDone = servedTargets.size >= TARGET_IDS.length;
+          if (atEnd && !allDone) {
+            solving = true;
+            solve('Planning next leg').finally(() => { solving = false; });
+          } else if (atEnd && allDone && !hazardQueue.length) {
+            running = false;
+            runBtn.disabled = false;
+            stopBtn.disabled = true;
+            setStatus('Mission complete', 'on');
+          }
+        }
+      }
+      draw();
+    }
+
+    const runBtn = document.getElementById('runBtn');
+    const stopBtn = document.getElementById('stopBtn');
+
+    async function runSimulation() {
+      runBtn.disabled = true;
+      stopBtn.disabled = false;
+      initMap();
+      hazardQueue = buildHazardQueue();
+      hazardStep = 0;
+      walker = null;
+      routes = [];
+      simTime = 0;
+      lastFrame = 0;
+      running = true;
+      visitedNodes = new Set([START]);
+      servedTargets = new Set();
+      completedPrefix = [START];
+      setStatus('Planning route…', 'on');
+      await solve('Initial route');
+    }
+
+    function stopSimulation() {
+      running = false;
+      hazardQueue = [];
+      runBtn.disabled = false;
+      stopBtn.disabled = true;
+      setStatus('Stopped');
+    }
+
+    runBtn.onclick = () => runSimulation().catch(e => { setStatus(e.message, 'alert'); stopSimulation(); });
+    stopBtn.onclick = stopSimulation;
+
+    async function boot() {
+      initMap();
+      resize();
+      draw();
+      try {
+        const h = await fetch(`${API}/health`, { signal: AbortSignal.timeout(2000) });
+        solverOk = h.ok;
+        setStatus(solverOk ? `Ready — ${N} nodes, ${edges.length} roads` : `Ready — ${N} nodes (local mode)`, 'on');
+      } catch {
+        solverOk = false;
+        setStatus(`Ready — ${N} nodes (solver offline OK)`, 'on');
+      }
+      frame(0);
+    }
+    boot();
+  </script>
+</body>
+</html>
