@@ -1,0 +1,98 @@
+{
+  "timestamp": "2026-06-20T21:00:00Z",
+  "disaster_state": "Wildfire - diagonal corridor closed, smoke over north ridge",
+  "vehicles": [
+    {
+      "id": "AIR-01",
+      "type": "air_rescue",
+      "capacity": 8,
+      "start_node": 0
+    },
+    {
+      "id": "GND-01",
+      "type": "ground_rescue",
+      "capacity": 10,
+      "start_node": 23
+    },
+    {
+      "id": "GND-02",
+      "type": "medical",
+      "capacity": 6,
+      "start_node": 18
+    }
+  ],
+  "target_nodes": [
+    {
+      "id": 4,
+      "priority": 6,
+      "demand": 3,
+      "time_window": [
+        0,
+        60
+      ]
+    },
+    {
+      "id": 7,
+      "priority": 9,
+      "demand": 4,
+      "time_window": [
+        0,
+        45
+      ]
+    },
+    {
+      "id": 11,
+      "priority": 7.5,
+      "demand": 3,
+      "time_window": [
+        0,
+        60
+      ]
+    },
+    {
+      "id": 16,
+      "priority": 8,
+      "demand": 5,
+      "time_window": [
+        0,
+        60
+      ]
+    },
+    {
+      "id": 19,
+      "priority": 9.5,
+      "demand": 6,
+      "time_window": [
+        0,
+        40
+      ]
+    },
+    {
+      "id": 22,
+      "priority": 5.5,
+      "demand": 2,
+      "time_window": [
+        0,
+        90
+      ]
+    }
+  ],
+  "dynamic_edge_modifiers": [
+    {
+      "edge": [
+        13,
+        8
+      ],
+      "multiplier": 9999,
+      "reason": "Bridge collapse"
+    },
+    {
+      "edge": [
+        9,
+        10
+      ],
+      "multiplier": 3,
+      "reason": "Heavy smoke"
+    }
+  ]
+}

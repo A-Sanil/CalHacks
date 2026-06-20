@@ -1,18 +1,23 @@
 import { GRAPH_EDGES, GRAPH_NODES } from '../simulation/graph'
-import type { HazardScenario, SimulationResult } from '../types'
+import type { HazardScenario, OptimizedRoute, SimulationResult } from '../types'
 
 const BASELINE_PATH = 'M 82 430 L 178 286 L 300 176 L 386 91 L 495 65 L 620 83'
+const ROUTE_COLORS = ['#37f0cf', '#ffd166', '#a78bfa', '#f87171', '#60a5fa']
 const edgeKey = (a: number, b: number) => a < b ? `${a}-${b}` : `${b}-${a}`
 
 type Props = {
   scenario: HazardScenario | null
   result: SimulationResult | null
   optimizing: boolean
+  backendRoutes?: OptimizedRoute[] | null
+  live?: boolean
 }
 
-export function TacticalMap({ scenario, result, optimizing }: Props) {
+export function TacticalMap({ scenario, result, optimizing, backendRoutes, live }: Props) {
   const blocked = new Set(scenario?.blockedEdges.map(([a, b]) => edgeKey(a, b)) ?? [])
   const activePath = result?.svgPath || BASELINE_PATH
+  const routes = backendRoutes ?? []
+  const hasBackend = routes.length > 0
 
   return <div className={`tactical-map ${result ? 'crisis' : ''} ${optimizing ? 'optimizing' : ''}`}>
     <svg viewBox="0 0 700 540" role="img" aria-label="24-node wildfire routing simulation">
@@ -41,8 +46,24 @@ export function TacticalMap({ scenario, result, optimizing }: Props) {
         <text x={scenario.hazard.x} y={scenario.hazard.y - scenario.hazard.radius - 9}>HAZARD ZONE</text>
       </g>}
 
+      {/* Local Dijkstra preview (dimmed when the live solver routes are shown) */}
       <path d={BASELINE_PATH} className={`route-path old ${result ? 'blocked' : ''}`} />
-      {result && <path d={activePath} className="route-path safe deployed" />}
+      {result && <path d={activePath} className="route-path safe deployed" opacity={hasBackend ? 0.18 : 1} />}
+
+      {/* Real OR-Tools CVRP routes from the backend, one colour per vehicle */}
+      {hasBackend && <g className="backend-routes">
+        {routes.map((route, i) => {
+          const color = ROUTE_COLORS[i % ROUTE_COLORS.length]
+          return <g key={route.vehicle_id}>
+            <path d={route.svg_path} fill="none" stroke={color} strokeWidth={3.2} strokeLinejoin="round" strokeLinecap="round" opacity={0.95} style={{ filter: 'url(#glow)' }} />
+            {route.ordered_nodes.map((nid, j) => {
+              const n = GRAPH_NODES[nid]
+              if (!n) return null
+              return <circle key={`${route.vehicle_id}-${nid}-${j}`} cx={n.x} cy={n.y} r={3.6} fill={color} />
+            })}
+          </g>
+        })}
+      </g>}
 
       <g className="graph-nodes">
         {GRAPH_NODES.map((node) => {
@@ -56,13 +77,24 @@ export function TacticalMap({ scenario, result, optimizing }: Props) {
         })}
       </g>
 
-      <g className="vehicle" key={`${result?.scenarioId ?? 0}-${optimizing}`}>
+      {/* Live route legend */}
+      {hasBackend && <g className="route-legend" transform="translate(28 34)">
+        {routes.map((route, i) => (
+          <g key={route.vehicle_id} transform={`translate(0 ${i * 17})`}>
+            <rect width="16" height="4" y="-4" rx="2" fill={ROUTE_COLORS[i % ROUTE_COLORS.length]} />
+            <text x="23" y="0" className="legend-text" fill="#cfeee6" style={{ fontSize: '11px' }}>{route.vehicle_id} · {route.eta_minutes}m · P{route.priority_served}</text>
+          </g>
+        ))}
+      </g>}
+
+      {!hasBackend && <g className="vehicle" key={`${result?.scenarioId ?? 0}-${optimizing}`}>
         <circle r="11"/><path d="M-4 -6 L7 0 L-4 6 Z"/>
         <animateMotion dur="9s" repeatCount="indefinite" path={activePath} />
-      </g>
+      </g>}
 
       {optimizing && <g className="scan-ring" transform={`translate(${scenario?.hazard.x ?? 350} ${scenario?.hazard.y ?? 250})`}><circle r="25"/><circle r="42"/></g>}
-      <text x="28" y="510" className="coordinates">24 NODES | 53 EDGES | DIJKSTRA HEURISTIC</text>
+      <text x="28" y="510" className="coordinates">{hasBackend ? `24 NODES | LIVE OR-TOOLS CVRP | ${routes.length} VEHICLES` : '24 NODES | 51 EDGES | DIJKSTRA HEURISTIC'}</text>
+      <text x="500" y="510" className="coordinates" fill={live ? '#37f0cf' : '#ff9b5a'}>{live ? 'SOLVER: LIVE' : 'SOLVER: OFFLINE'}</text>
       <text x="640" y="510" className="north">N ^</text>
     </svg>
   </div>

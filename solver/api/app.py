@@ -15,6 +15,7 @@ from solver.config import settings
 from solver.core.matrix import CostMatrixBuilder
 from solver.core.schema import ProblemPayload, SolveResponse
 from solver.core.solver import SolverEngine
+from solver.api.optimize import router as optimize_router
 from solver.redis_client import create_redis_client
 
 
@@ -109,6 +110,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Live dashboard solve path (frontend OptimizationRequest -> real CVRP solver)
+app.include_router(optimize_router)
 
 if VIZ_DIR.is_dir():
     app.mount("/viz", StaticFiles(directory=str(VIZ_DIR), html=True), name="viz")
