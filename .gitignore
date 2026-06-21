@@ -1,14 +1,6 @@
-.venv/
-venv/
+# python
 __pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-*.egg-info/
-models/
-dist/
-build/
-.env
-node_modules/
-*.log
-*.tsbuildinfo
+*.pyc
+.venv/
+# voice runtime output
+voice/out/
