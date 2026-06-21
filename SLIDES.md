@@ -6,146 +6,211 @@ title: Project Aegis Route
 ---
 
 # Project Aegis Route
-### Real-Time Agentic Optimization for Disaster Logistics
-Unstructured intel → live Redis graph → JSON contract → OR-Tools → optimized routes
+### Real-Time Agentic Optimization for Wildfire Search & Rescue
+
+Unstructured intel → structured state → optimal routes — **live**.
+
+Grounded in the **January 2025 Palisades Fire**.
+
+`GraphRAG · Redis · LLM Agent · OR-Tools · React`
 
 ---
 
-## The problem
-- Disaster routing = **dynamic, non-Euclidean VRP under evolving constraints**
-- The map changes second-by-second: bridges burn, roads close, casualties appear
-- A static shortest path is wrong 30 seconds later
-- **Need:** ingest chaos in plain language → re-optimize **instantly**
+# The problem
+
+In a wildfire, the map is **wrong within minutes**.
+
+- Roads close, smoke shifts, new 911 calls land every second.
+- A route computed 90s ago can drive a rescue team **into the fire**.
+- Intel arrives as **unstructured chaos**: 911 transcripts, fire-dept radio,
+  weather feeds, social posts.
+
+**Re-solving from raw text on every update is too slow and too expensive.**
+
+We need a system that turns chaos into an O(1) live state — and re-routes in real time.
 
 ---
 
-## Two brains, one nervous system
-| Brain | Job | Why |
-|---|---|---|
-| **LLM / Extractor** | text → structured graph deltas | great at language, bad at math |
-| **OR-Tools Solver** | optimal capacitated routes | exact & fast; never let the LLM route |
+# Grounded in real data (Jan 2025 Palisades Fire)
 
-**Redis = the nervous system**: holds every weight, O(1) updates, carries contract + solution via pub/sub.
+Not a toy graph — the demo is built on real public datasets:
 
----
-
-## Architecture
-
-```
-sources ─▶ ingest ─▶ extractor (semantic cache + rules/LLM) ─▶ REDIS (base*mult, O(1))
-                                                                  │ traverse (GraphRAG k-hop)
-                                            contract_builder ◀─────┘
-                                            store IN redis + PUBLISH contract:update
-                                                   │
-                                            solver_bridge ─▶ YOUR solver
-                                            store_solution + PUBLISH routes:update ─▶ Mapbox
-```
-
----
-
-## Redis data model
-```text
-node:{id}      HASH  lat lng type demand priority tw_start tw_end
-edge:{i}:{j}   HASH  base_cost  multiplier  reason
-aegis:aliases  HASH  "hwy 9 bridge" -> "3:5"
-aegis:contract:latest / aegis:routes:latest  STRING
-```
-**final_cost(i,j) = base_cost × multiplier**
-- base_cost = preset (OSM) · multiplier = live (1=ok, 1.5=degraded, 1000=impassable)
-- **Every update = one HSET = O(1)** → no matrix rebuild
-
----
-
-## Data example — one edge, before & after
-```text
-# seeded
-edge:3:5  base_cost=5.0  multiplier=1     reason=none      final = 5.0
-# "fire jumped Hwy 9 bridge"  (ONE O(1) write)
-HSET edge:3:5 multiplier 1000 reason "fire_dept:active_fire_front"
-edge:3:5  base_cost=5.0  multiplier=1000  reason=...        final = 5000.0
-```
-Update frequency (telemetry, constant) is **decoupled** from solve frequency (on demand).
-
----
-
-## Traversal — step by step (1/2)
-**Input:** "Engine 12: structure fire jumped Hwy 9 bridge, road impassable."
-1. **Ingest** → Signal{source:phone_call, channel:fire_dept, text:…}
-2. **Semantic cache** → miss first time; paraphrase later = HIT, 0 tokens
-3. **Extract** → resolve "hwy 9 bridge"→(3,5); "impassable"→×1000
-   `{"target":"edge","i":3,"j":5,"multiplier":1000,"reason":"fire_dept:active_fire_front"}`
-4. **Redis O(1)** → `HSET edge:3:5 multiplier 1000` (+ symmetric)
-
----
-
-## Traversal — step by step (2/2)
-5. **GraphRAG traversal** — BFS k-hop from hazard seeds {3,5}:
-```json
-{ "nodes":[0,2,3,4,5,7,9],
-  "edges":[{"edge":[3,5],"final_cost":5000.0,"reason":"...fire..."},
-           {"edge":[3,2],"final_cost":4.0},{"edge":[5,2],"final_cost":3.0}] }
-```
-6. **Build contract** (stored IN redis) + PUBLISH contract:update
-7. **Solve** (your OR-Tools) → routes that avoid edge 3-5 + write back + PUBLISH routes:update
-8. **Loop forever**
-
----
-
-## The JSON Matrix Payload (Agent → Solver contract)
-```json
-{ "timestamp":"2026-06-20T20:14:04Z", "disaster_state":"escalating_wildfire",
-  "vehicles":[{"id":"V1","type":"air_evac","capacity":4,"start_node":0},
-              {"id":"V2","type":"ground_heavy","capacity":12,"start_node":1}],
-  "target_nodes":[{"id":2,"priority":10.0,"demand":0,"time_window":[0,240]},
-                  {"id":5,"priority":9.5,"demand":3,"time_window":[0,45]}],
-  "dynamic_edge_modifiers":[{"edge":[3,5],"multiplier":1000,"reason":"active_fire_front"}] }
-```
-
----
-
-## Contract → OR-Tools mapping
-| Contract field | OR-Tools |
+| Source | What it gives us |
 |---|---|
-| vehicles[].capacity | capacity dimension |
-| target_nodes[].demand | node demand |
-| target_nodes[].priority | drop penalty (disjunction) ∝ priority |
-| target_nodes[].time_window | time dimension window |
-| modifiers × base_cost | arc cost matrix |
-| multiplier=1000 | forbids the arc |
+| **LAFD fire progression** | 11 timestamped perimeters, Jan 7–11 2025 |
+| **OpenStreetMap (Overpass)** | the actual Palisades road network |
+| **USGS 3DEP** | elevation raster for terrain-aware cost |
+| **EPA AirNow** | PM2.5 smoke-risk field |
+
+Bounding box `-118.72, 33.99, -118.46, 34.16`. Fire perimeters are **replayed
+in time order** so the map evolves exactly as the real fire did.
 
 ---
 
-## Token efficiency — Redis semantic cache
-- Embed each message → cosine KNN (RediSearch on Redis Stack; NumPy fallback offline)
-- Paraphrases reuse prior extractions → **0 tokens**
-- **Verified:** 12,000 ticks → **61.3% hit-rate, ~3.09M tokens saved**
+# Architecture: two layers, decoupled
 
----
-
-## Proven under continuous load
 ```
-12,000 live ticks · 15 seeds · 60 ticks/s
-ALL INVARIANTS HELD every single tick
-480 solver runs · 3,089,100 tokens saved · 61.3% cache hit
-13 tests pass (store/contract/pubsub/semcache/solver/traversal/realtime)
+  911 · fire-dept · weather · social   (unstructured)
+                  |
+        extractor_agent  (LLM + rule-engine fallback)
+                  |
+  GraphRAG static graph  --->  REDIS live state  (O(1) edge weights, priorities)
+   (roads/terrain, indexed once)        |
+                            contract_builder -> Matrix Payload JSON
+                                        |
+     React dashboard  <--/optimize-->  FastAPI  ->  OR-Tools solver
+        (SVG tactical map)         (/solve /optimize /ws/routes)
 ```
-Invariants: final=base×mult, modifier consistency, demand≥0, priority∈[0,10],
-contract round-trips, solver respects capacity & covers all targets.
+
+- **GraphRAG** = what rarely changes (topology, terrain) — pre-indexed once.
+- **Redis** = what changes every second (live costs, priorities) — O(1).
 
 ---
 
-## How we extend & improve (safely)
-- **New source** → one adapter in `ingest.py` (Twilio→Whisper, NOAA, Caltrans, FIRMS…)
-- **New entity** → add an alias (GraphRAG can auto-populate from briefing docs)
-- **New intent** → keyword branch or better LLM prompt
-- **Real solver** → `run_solver(store, my_solver)`
-- **Every change guarded by tests + the invariant stress harness**
+# The agentic pipeline
+
+Every piece of intel flows through one normalized path:
+
+1. **`ingest.py`** — multi-source adapters (phone, API, social) → one schema.
+2. **`extractor_agent.py`** — LLM turns *"bridge out on Route 4"* into a
+   structured edge update. Deterministic **rule-engine fallback** if the LLM is down.
+3. **`redis_store.py`** — writes a live multiplier. `final_cost = base × multiplier`.
+4. **`contract_builder.py`** — assembles the **Matrix Payload** the solver consumes.
+5. **`solver_bridge.py`** — runs the solver, writes the solution back,
+   **publishes** on `aegis:updates` + `/ws/routes` for the dashboard.
+
+> Telemetry (continuous, O(1)) is **decoupled** from solving (on-demand).
 
 ---
 
-## The demo moment
-> Inject "fire crossed Route 4" → one O(1) Redis write → contract rebuilt →
-> solver re-routes → Mapbox chevron snaps around the hazard — in real time.
+# Why Redis is the right call
+
+- **O(1) live edge weights** — one `"Route 4 blocked"` = one `HSET`, not a re-parse.
+- **`final_cost = base × multiplier`** — static topology stays put; only the
+  thin live layer moves.
+- **Pub/Sub** (`aegis:contract:update`, `aegis:routes:update`) streams updates
+  straight to the dashboard — no polling.
+- **Graceful by default** — runs on `fakeredis` out of the box, **auto-upgrades**
+  to real Redis (incl. RediSearch) when available.
+
+---
+
+# Semantic cache: don't pay to think twice
+
+Paraphrased intel (*"fire on 4"* ≈ *"Route 4 is burning"*) shouldn't trigger a
+second LLM call. **`semantic_cache.py`** = RediSearch vector cache (NumPy fallback).
+
+**Live harness — 12,000 ticks, re-solve every 25:**
+
+| Metric | Result |
+|---|---|
+| Solver runs | **480** |
+| Cache hit rate | **96.0%** |
+| LLM tokens saved | **4.84 million** |
+| Invariants | **all held, zero crashes** |
+
+---
+
+# The real solver (not a black box)
+
+A full optimization subsystem (`solver/`, FastAPI) — **never the LLM routing**:
+
+- **OR-Tools CVRP** — capacity-constrained, **priority-aware triage** (drops
+  lowest-priority sites when the fleet can't serve everyone).
+- **TSP-LKH + 2-opt** refinement for per-vehicle ordering.
+- **Optional PyTorch ML warm-start** — degrades cleanly to nearest-neighbor.
+- Served via **`/solve`, `/optimize`, `/health`, `/ws/routes`** (live WebSocket).
+
+The `/optimize` endpoint solves on the **same 24-node grid the map renders**,
+so routes come back as drawable `svg_path` + `ordered_nodes`.
+
+---
+
+# The dashboard (React + Vite + TS)
+
+- Live **SVG tactical map**, incident feed, operations sidebar.
+- Calls the real backend `/optimize`; **falls back to a local Dijkstra preview**
+  if the API is offline — the demo never hard-fails.
+- Per-vehicle routes, `SOLVER: LIVE / OFFLINE` badge, real metrics in the feed.
+- Palisades-specific views: `PalisadesMap`, `DynamicMissionMap`, `NodeSelector`,
+  `DemoGuide`.
+
+---
+
+# The killer demo: continue-or-retreat
+
+**Fire Station 6** is the safe base. Rescue sites **N9 · N15 · N21** are inside the fire.
+
+1. Sites ranked by **fire-distance priority + round-trip cost**; team takes the
+   lowest-cost route, loads survivors, returns, marks the site safe.
+2. A **concurrent ambulance** from **Hospital 14** runs its own queue
+   (5 medical calls, capacity 3) — independent route, blue/purple styling.
+3. The **LAFD perimeter keeps advancing**; fire-exposed edges gain rising
+   risk + travel weight in Redis.
+4. A mid-mission **flare-up injects a `LIVE N1000` split node** (yellow ring).
+   The optimizer weighs distance-remaining vs retreat vs fire exposure vs
+   alternative cost vs priority — and **re-routes or retreats, live**.
+
+---
+
+# One O(1) write, end to end
+
+> A 911 caller says *"the fire jumped Sunset by the village."*
+>
+> → `extractor_agent` → **one Redis multiplier write** → `contract_builder`
+> rebuilds the Matrix Payload → OR-Tools re-solves → the chevron on the React
+> map **snaps around the new hazard** — in real time.
+
+That single thread is the whole product.
+
+---
+
+# Engineering rigor
+
+- **38 tests** green (unit + integration + realtime + traversal + `/optimize`).
+- Fallbacks at **every** layer: LLM→rules, RediSearch→NumPy, real-Redis→fakeredis,
+  Torch→nearest-neighbor, backend→local Dijkstra.
+- Self-improving harness caught a real **O(n) cache bug** → vectorized to O(1)-amortized.
+- Decoupled, replayable, and **demo-proof** offline.
+
+---
+
+# Tech stack
+
+| Layer | Tech |
+|---|---|
+| Live state | **Redis** (+ RediSearch), pub/sub |
+| Knowledge | **GraphRAG** static graph + local search |
+| Agent | **LLM extractor** + rule-engine fallback + semantic cache |
+| Optimizer | **OR-Tools CVRP**, TSP-LKH, 2-opt, PyTorch warm-start |
+| Backend | **FastAPI** (`/optimize`, `/solve`, `/ws/routes`) |
+| Frontend | **React + Vite + TypeScript**, SVG tactical map |
+| Data | LAFD · OpenStreetMap · USGS 3DEP · EPA AirNow |
+
+---
+
+# Run it
+
+```bash
+# 1) Solver backend  ->  http://localhost:8000
+./scripts/run_backend.ps1        # (.sh on macOS/Linux)
+
+# 2) Dashboard       ->  http://localhost:5173
+./scripts/run_frontend.ps1
+
+# Headless agentic pipeline demo
+pip install -r requirements.txt && python demo.py
+
+# Tests
+python -m pytest -q              # 38 passed
+```
+
+---
 
 # Thank you
-`pip install -r requirements.txt && python demo.py`
+
+**Aegis Route** — chaos in, optimal rescue routes out, live.
+
+Real fire data · O(1) live state · real optimizer · real dashboard.
+
+`github.com/A-Sanil/CalHacks`
