@@ -15,3 +15,4 @@ pytest>=8.0
 pytest-asyncio>=0.23
 fakeredis>=2.21
 deepgram-sdk>=3.7  # voice: STT (nova-3), TTS (aura-2), Voice Agent API
+python-multipart>=0.0.9

@@ -68,6 +68,15 @@ function App() {
   const movementProgress = useRef<{ position: [number, number]; segmentIndex: number; remainingRatio: number } | null>(null)
   const virtualNodeSequence = useRef(1000)
   const midpathDemoTriggered = useRef(false)
+  // --- Voice 911 intake (Deepgram) ---------------------------------------
+  const [voiceSites, setVoiceSites] = useState<{ node: number; demand: number; priority: number; label: string }[]>([])
+  const [voicePriority, setVoicePriority] = useState<Record<number, number>>({})
+  const [recording, setRecording] = useState(false)
+  const [voiceMsg, setVoiceMsg] = useState('')
+  const [voiceTranscript, setVoiceTranscript] = useState('')
+  const [typedCall, setTypedCall] = useState('')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   useEffect(() => {
     Promise.all([
@@ -96,8 +105,8 @@ function App() {
     const outbound = optimizeRouteAlternatives(FIRE_STATION, site, weighted, 1)[0]
     const inbound = optimizeRouteAlternatives(site, FIRE_STATION, weighted, 1)[0]
     const travelCost = [...(outbound?.edges ?? []), ...(inbound?.edges ?? [])].reduce((sum, edge) => sum + edge.cost, 0)
-    return { site, score: travelCost / (1 + (priorities[site] ?? 1) * 0.12) }
-  }).sort((a, b) => a.score - b.score), [remainingSites, weighted, priorities])
+    return { site, score: travelCost / (1 + (voicePriority[site] ?? priorities[site] ?? 1) * 0.12) }
+  }).sort((a, b) => a.score - b.score), [remainingSites, weighted, priorities, voicePriority])
   const selectedSite = activeSite ?? rankedSites[0]?.site ?? null
   const targetNode = phase === 'returning' ? FIRE_STATION : selectedSite
   const plans = useMemo(() => targetNode === null ? [EMPTY_PLAN] : optimizeRouteAlternatives(currentNode, targetNode, weighted, 3), [currentNode, targetNode, weighted])
@@ -232,7 +241,90 @@ function App() {
     const seed = initialFireState(events)
     setRunning(false); setStarted(false); setEventIndex(seed.eventIndex); setCurrentNode(FIRE_STATION); setRemainingSites([...RESCUE_SITES]); setRescuedSites([]); setActiveSite(null); setPhase('outbound'); setFire(seed.collection); setFireTimestamp(seed.timestamp); setPm25(0); setLatest(seed.latest); setMovement(null); setMovementDelay(650); setInterrupted(false); setVirtualSplit(null); movementProgress.current = null; virtualNodeSequence.current = 1000; midpathDemoTriggered.current = false
     setAmbulanceNode(HOSPITAL); setMedicalCalls([...MEDICAL_CALLS]); setCollectedCalls([]); setAmbulanceOnboard(0); setAmbulanceDelivered(0); setAmbulancePhase('collecting'); setAmbulanceMovement(null); setAmbulanceDelay(850); ambulanceProgress.current = null
+    setVoiceSites([]); setVoicePriority({}); setVoiceMsg(''); setVoiceTranscript(''); setRecording(false)
   }
+
+  // --- Voice 911 intake: speak (or type) an emergency -> drop a NEW SAR site
+  //     into the running rescue loop so the optimizer reroutes to it ----------
+  const VOICE_NUM: Record<string, number> = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,'twenty-one':21,'twenty-two':22,'twenty-three':23,'twenty-four':24,a:1,an:1,couple:2,few:3,several:4 }
+  const voiceNum = (w: string) => (/^\d+$/.test(w) ? parseInt(w, 10) : VOICE_NUM[w])
+  const numAlt = () => Object.keys(VOICE_NUM).sort((a, b) => b.length - a.length).join('|')
+  function vParseNode(text: string): number | null {
+    const t = text.toLowerCase()
+    let m = t.match(new RegExp('\\b(?:node|site|sector|grid|sar)\\s+n?\\.?\\s*(\\d+|' + numAlt() + ')\\b'))
+    if (!m) m = t.match(/\bn[\s.\-]?(\d{1,2})\b/)
+    if (m) { const n = voiceNum(m[1]); if (n != null && n >= 0 && n <= 24) return n }
+    return null
+  }
+  function vParseDemand(text: string): number {
+    const t = text.toLowerCase()
+    const victims = '(?:victim|people|persons?|trapped|evacuees?|civilians?|souls?|injured|patients?)'
+    let m = t.match(new RegExp('(\\d+|' + numAlt() + ')\\s+(?:\\w+\\s+)?' + victims))
+    if (!m) m = t.match(new RegExp('family of (\\d+|' + numAlt() + ')'))
+    if (m) { const n = voiceNum(m[1]); if (n) return Math.max(1, Math.min(n, 99)) }
+    return 1
+  }
+  function vParsePriority(text: string): { label: string; weight: number } {
+    const t = text.toLowerCase()
+    if (/critical|life.?threat|mayday|code red|trapped/.test(t)) return { label: 'critical', weight: 99 }
+    if (/urgent|high|serious/.test(t)) return { label: 'high', weight: 40 }
+    if (/medium|moderate/.test(t)) return { label: 'medium', weight: 20 }
+    if (/low|minor/.test(t)) return { label: 'low', weight: 8 }
+    return { label: 'high', weight: 40 }
+  }
+  function vPickFallback(): number {
+    const taken = new Set<number>([...remainingSites, ...rescuedSites, currentNode, FIRE_STATION, HOSPITAL])
+    for (const c of [12, 3, 20, 8, 17, 2, 24, 5, 0, 11]) if (!taken.has(c)) return c
+    for (let i = 0; i <= 24; i++) if (!taken.has(i)) return i
+    return 12
+  }
+  function applyDispatch(transcript: string, source: string) {
+    const node = vParseNode(transcript) ?? vPickFallback()
+    const demand = vParseDemand(transcript)
+    const { label, weight } = vParsePriority(transcript)
+    setVoiceTranscript(transcript)
+    setVoiceSites((prev) => (prev.some((v) => v.node === node) ? prev : [...prev, { node, demand, priority: weight, label }]))
+    setVoicePriority((prev) => ({ ...prev, [node]: weight }))
+    setRemainingSites((prev) => (prev.includes(node) ? prev : [...prev, node]))
+    if (phase !== 'returning') setActiveSite(node)
+    if (!started) setStarted(true)
+    setRunning(true)
+    setVoiceMsg('New SAR site at N' + node + ' · ' + demand + ' victim' + (demand > 1 ? 's' : '') + ' · ' + label.toUpperCase() + ' — ' + (source === 'typed' ? 'dispatching' : 'transcribed, dispatching') + ', rerouting fire unit')
+  }
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      audioChunksRef.current = []
+      mr.ondataavailable = (e) => { if (e.data.size) audioChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        setRecording(false)
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        setVoiceMsg('Transcribing 911 call with Deepgram…')
+        try {
+          const fd = new FormData()
+          fd.append('audio', blob, 'call.webm')
+          const res = await fetch(API + '/voice/transcribe', { method: 'POST', body: fd })
+          if (!res.ok) throw new Error('HTTP ' + res.status)
+          const data = await res.json()
+          if (!data.transcript) throw new Error('empty transcript')
+          applyDispatch(data.transcript, 'deepgram')
+        } catch (err) {
+          setVoiceMsg('Mic transcription unavailable (' + (err instanceof Error ? err.message : String(err)) + '). Type the call instead.')
+        }
+      }
+      mediaRecorderRef.current = mr
+      mr.start()
+      setRecording(true)
+      setVoiceMsg('Listening… click STOP when the caller finishes')
+    } catch (err) {
+      setVoiceMsg('Mic blocked (' + (err instanceof Error ? err.message : String(err)) + '). Use the text box to simulate the call.')
+    }
+  }
+  function stopRecording() { mediaRecorderRef.current?.stop() }
+  function toggleMic() { if (recording) stopRecording(); else startRecording() }
+
 
   const timestamp = latest ? new Date(latest.timestamp).toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
   const totalDistance = plan.edges.reduce((sum, edge) => sum + edge.distance_m, 0)
@@ -255,6 +347,25 @@ function App() {
       <aside className="geo-sidebar">
         <section><span className="eyebrow">SIMPLE RESCUE LOOP</span><h1>Station → site → station</h1><p>Each trip starts at Fire Station 6, reaches one site inside the fire, loads survivors, and returns them to the station before the next rescue begins.</p></section>
         <section><div className="section-label">MISSION STATUS</div><div className={`phase-banner ${phase}`}><strong>{missionLabel}</strong><span>{phase === 'returning' ? 'Survivors secured—return to station' : phase === 'outbound' ? 'Traveling to people in danger' : 'Everyone returned safely'}</span></div></section>
+        <section className="voice-panel">
+          <div className="section-label">911 VOICE INTAKE <b>{voiceSites.length} live</b></div>
+          <div className="voice-controls">
+            <button className={'mic-btn ' + (recording ? 'rec' : '')} onClick={toggleMic} disabled={!graph} type="button">{recording ? '\u23F9 STOP' : '\uD83C\uDFA4 SIMULATE 911 CALL'}</button>
+            <form className="voice-typed" onSubmit={(e) => { e.preventDefault(); const t = typedCall.trim(); if (t) { applyDispatch(t, 'typed'); setTypedCall('') } }}>
+              <input value={typedCall} onChange={(e) => setTypedCall(e.target.value)} placeholder='e.g. "two trapped at node twelve, critical"' />
+              <button type="submit">DISPATCH</button>
+            </form>
+          </div>
+          {voiceMsg && <div className="voice-msg">{voiceMsg}</div>}
+          {voiceTranscript && <div className="voice-transcript">&ldquo;{voiceTranscript}&rdquo;</div>}
+          {voiceSites.map((v) => (
+            <div className={'rescue-row ' + (rescuedSites.includes(v.node) ? 'rescued' : activeSite === v.node ? 'active' : '')} key={'voice-' + v.node}>
+              <i>{rescuedSites.includes(v.node) ? '\u2713' : activeSite === v.node ? '\u2192' : '!'}</i>
+              <span>SAR N{v.node}<small>{v.demand} victims · {v.label.toUpperCase()}</small></span>
+              <strong>{rescuedSites.includes(v.node) ? 'SAFE' : activeSite === v.node ? phase.toUpperCase() : 'QUEUED'}</strong>
+            </div>
+          ))}
+        </section>
         <section><div className="section-label">RESCUE SITES <b>{rescuedSites.length}/{RESCUE_SITES.length}</b></div>{RESCUE_SITES.map((site) => <div className={`rescue-row ${rescuedSites.includes(site) ? 'rescued' : activeSite === site ? 'active' : ''}`} key={site}><i>{rescuedSites.includes(site) ? '✓' : activeSite === site ? '→' : '!'}</i><span>Site N{site}<small>Inside active fire · P{priorities[site] ?? 10}</small></span><strong>{rescuedSites.includes(site) ? 'SAFE' : activeSite === site ? phase.toUpperCase() : 'WAITING'}</strong></div>)}</section>
         <section className="ambulance-panel"><div className="section-label">AMBULANCE · HOSPITAL 14 <b>{ambulanceOnboard}/{AMBULANCE_CAPACITY} onboard</b></div><div className={`ambulance-status ${ambulancePhase}`}><strong>{ambulancePhase === 'returning' ? 'RETURNING TO HOSPITAL' : ambulancePhase === 'complete' ? 'MEDICAL MISSION COMPLETE' : `COLLECTING AT N${ambulanceTarget ?? '—'}`}</strong><span>{ambulanceDelivered} delivered · {medicalCalls.length} calls waiting</span></div><div className="capacity-track"><i style={{width:`${ambulanceOnboard / AMBULANCE_CAPACITY * 100}%`}} /></div><small>At 3/3 onboard, the ambulance automatically returns, unloads, then resumes the remaining calls.</small></section>
         <section className="metric-grid"><div><span>LEG ETA</span><strong>{Math.round(plan.eta)} min</strong></div><div><span>TRAVEL IN FIRE</span><strong>{firePercent}%</strong></div><div><span>CURRENT TARGET</span><strong>N{targetNode ?? '—'}</strong></div><div><span>AT STATION</span><strong>{currentNode === FIRE_STATION ? 'YES' : 'NO'}</strong></div></section>

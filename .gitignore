@@ -2,5 +2,9 @@
 __pycache__/
 *.pyc
 .venv/
+# secrets — never commit
+.env
+.env.*
+!.env.example
 # voice runtime output
 voice/out/
