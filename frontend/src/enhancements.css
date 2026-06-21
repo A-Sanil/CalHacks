@@ -32,6 +32,11 @@
 .rescue-row.rescued>strong { color:var(--mint); }
 .time-card small { display:block; margin-top:4px; color:#788b84; font:7px DM Mono; }
 .map-legend .ambulance-dot { height:3px; background:#7c8cff; }
+.map-legend { width:auto; max-width:none; justify-content:flex-start; gap:20px; padding:14px 18px; background:#07110ff5; border:2px solid #557269; box-shadow:0 12px 32px #000a; transform:scale(1.6); transform-origin:bottom left; }
+.map-legend span { gap:10px; color:#f0f7f4; font-size:16px; font-weight:600; white-space:nowrap; }
+.map-legend i { width:30px; height:5px; }
+.map-legend .ambulance-dot,.map-legend .exposed-dot { height:5px; }
+.map-legend .fire-dot { width:16px; height:16px; }
 .ambulance-panel { border-left:2px solid #7c8cff; padding-left:12px; }
 .ambulance-status { padding:9px; border:1px solid #384873; background:#11172a; }
 .ambulance-status strong,.ambulance-status span { display:block; }
@@ -41,3 +46,7 @@
 .ambulance-status.returning strong { color:#d895ff; }
 .capacity-track { height:5px; margin-top:8px; background:#252d47; }
 .capacity-track i { display:block; height:100%; background:linear-gradient(90deg,#6f8eff,#c16eff); transition:width .4s; }
+.speed-control { position:absolute; z-index:3; left:18px; bottom:122px; width:360px; padding:12px 15px; background:#07110ff2; border:1px solid #557269; box-shadow:0 10px 28px #0009; }
+.speed-control>span { display:flex; justify-content:space-between; color:#dbe8e4; font:11px DM Mono; letter-spacing:.08em; }
+.speed-control b { color:var(--mint); font-weight:500; }
+.speed-control input { width:100%; margin:10px 0 1px; accent-color:var(--mint); cursor:pointer; }

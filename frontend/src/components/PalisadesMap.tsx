@@ -23,6 +23,7 @@ type Props = {
   collectedMedicalSites: number[]
   ambulancePlan: MissionPlan
   ambulanceMovement: WeightedEdge | null
+  playbackSpeed: number
   onMovementComplete: (destination: number) => void
   onMovementProgress: (progress: { position: [number, number]; segmentIndex: number; remainingRatio: number }) => void
   onAmbulanceComplete: (destination: number) => void
@@ -32,19 +33,23 @@ type Props = {
 const empty = { type: 'FeatureCollection', features: [] } as any
 const featureCollection = (features: any[]) => ({ type: 'FeatureCollection', features }) as any
 
-export function PalisadesMap({ graph, currentNode, requiredSites, visitedSites, fire, plan, alternatives, compromisedSites, priorities, overview, movement, virtualNode, baseStation, hospital, ambulanceNode, medicalSites, collectedMedicalSites, ambulancePlan, ambulanceMovement, onMovementComplete, onMovementProgress, onAmbulanceComplete, onAmbulanceProgress }: Props) {
+export function PalisadesMap({ graph, currentNode, requiredSites, visitedSites, fire, plan, alternatives, compromisedSites, priorities, overview, movement, virtualNode, baseStation, hospital, ambulanceNode, medicalSites, collectedMedicalSites, ambulancePlan, ambulanceMovement, playbackSpeed, onMovementComplete, onMovementProgress, onAmbulanceComplete, onAmbulanceProgress }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<Map | null>(null)
   const completionRef = useRef(onMovementComplete)
   const progressRef = useRef(onMovementProgress)
   const ambulanceCompletionRef = useRef(onAmbulanceComplete)
   const ambulanceProgressRef = useRef(onAmbulanceProgress)
+  const playbackSpeedRef = useRef(playbackSpeed)
+  const autoFocusUsed = useRef(false)
+  const overviewVisible = useRef(false)
   const [mapReady, setMapReady] = useState(false)
 
   completionRef.current = onMovementComplete
   progressRef.current = onMovementProgress
   ambulanceCompletionRef.current = onAmbulanceComplete
   ambulanceProgressRef.current = onAmbulanceProgress
+  playbackSpeedRef.current = playbackSpeed
 
   useEffect(() => {
     if (!container.current || mapRef.current) return
@@ -151,10 +156,14 @@ export function PalisadesMap({ graph, currentNode, requiredSites, visitedSites, 
     const total = distances.at(-1) || 1
     const start = performance.now()
     const duration = Math.max(900, Math.min(5200, movement.base_time_min * 220))
+    let simulatedElapsed = 0
+    let previousFrame = start
     let lastProgressUpdate = 0
     let frame = 0
     const animate = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1)
+      simulatedElapsed += (now - previousFrame) * playbackSpeedRef.current
+      previousFrame = now
+      const progress = Math.min(simulatedElapsed / duration, 1)
       const target = total * (progress < .5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2)
       let index = 1
       while (index < distances.length - 1 && distances[index] < target) index++
@@ -190,10 +199,14 @@ export function PalisadesMap({ graph, currentNode, requiredSites, visitedSites, 
     const total = distances.at(-1) || 1
     const start = performance.now()
     const duration = Math.max(900, Math.min(5200, ambulanceMovement.base_time_min * 220))
+    let simulatedElapsed = 0
+    let previousFrame = start
     let frame = 0
     let lastProgressUpdate = 0
     const animate = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1)
+      simulatedElapsed += (now - previousFrame) * playbackSpeedRef.current
+      previousFrame = now
+      const progress = Math.min(simulatedElapsed / duration, 1)
       const eased = progress < .5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2
       const target = total * eased
       let index = 1
@@ -218,21 +231,28 @@ export function PalisadesMap({ graph, currentNode, requiredSites, visitedSites, 
   useEffect(() => {
     const map = mapRef.current
     const paths = [movement?.path, ambulanceMovement?.path].filter(Boolean) as [number, number][][]
-    if (!mapReady || !map || !paths.length) return
+    if (!mapReady || !map || !paths.length || autoFocusUsed.current) return
     const coordinates = paths.flat()
     const bounds = coordinates.reduce((result, coordinate) => result.extend(coordinate), new maplibregl.LngLatBounds(coordinates[0], coordinates[0]))
     map.fitBounds(bounds, { padding: 95, maxZoom: 12.4, duration: 700 })
+    autoFocusUsed.current = true
   }, [mapReady, movement, ambulanceMovement])
 
   useEffect(() => {
     const map = mapRef.current
-    if (!mapReady || !map || !overview) return
+    if (!mapReady || !map || !overview || overviewVisible.current) return
+    overviewVisible.current = true
+    autoFocusUsed.current = false
     const ids = [...new Set([baseStation, hospital, currentNode, ambulanceNode, ...requiredSites, ...compromisedSites, ...medicalSites])]
     const points = ids.map((id) => graph.nodes.find((node) => node.id === id)).filter(Boolean) as RoadGraph['nodes']
     if (!points.length) return
     const bounds = points.reduce((result, node) => result.extend([node.longitude, node.latitude]), new maplibregl.LngLatBounds([points[0].longitude, points[0].latitude], [points[0].longitude, points[0].latitude]))
     map.fitBounds(bounds, { padding: 90, maxZoom: 12.2, duration: 700 })
   }, [mapReady, overview, graph, baseStation, hospital, currentNode, ambulanceNode, requiredSites, compromisedSites, medicalSites])
+
+  useEffect(() => {
+    if (!overview) overviewVisible.current = false
+  }, [overview])
 
   return <div className="palisades-map" ref={container} />
 }

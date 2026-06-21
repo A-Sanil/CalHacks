@@ -63,6 +63,7 @@ function App() {
   const [ambulancePhase, setAmbulancePhase] = useState<'collecting' | 'returning' | 'complete'>('collecting')
   const [ambulanceMovement, setAmbulanceMovement] = useState<WeightedEdge | null>(null)
   const [ambulanceDelay, setAmbulanceDelay] = useState(850)
+  const [playbackSpeed, setPlaybackSpeed] = useState(0.65)
   const ambulanceProgress = useRef<{ position: [number, number]; segmentIndex: number; remainingRatio: number } | null>(null)
   const movementProgress = useRef<{ position: [number, number]; segmentIndex: number; remainingRatio: number } | null>(null)
   const virtualNodeSequence = useRef(1000)
@@ -162,27 +163,27 @@ function App() {
       }
       if (event.type === 'smoke_observation') setPm25(averageSmoke(event.payload))
       setEventIndex((index) => index + 1)
-    }, events[eventIndex]?.type === 'fire_perimeter' ? 1400 : 3400)
+    }, (events[eventIndex]?.type === 'fire_perimeter' ? 1400 : 3400) / playbackSpeed)
     return () => window.clearTimeout(timer)
-  }, [running, eventIndex, events, hazardMatrix])
+  }, [running, eventIndex, events, hazardMatrix, playbackSpeed])
 
   useEffect(() => {
     if (!running || movement || phase === 'complete' || !plan.edges.length) return
     const timer = window.setTimeout(() => {
       if (phase === 'outbound' && activeSite === null && selectedSite !== null) setActiveSite(selectedSite)
       setInterrupted(false); movementProgress.current = null; setMovement(plan.edges[0])
-    }, movementDelay)
+    }, movementDelay / playbackSpeed)
     return () => window.clearTimeout(timer)
-  }, [running, movement, phase, plan.edges, movementDelay, activeSite, selectedSite])
+  }, [running, movement, phase, plan.edges, movementDelay, activeSite, selectedSite, playbackSpeed])
 
   useEffect(() => {
     if (!running || ambulanceMovement || ambulancePhase === 'complete' || !ambulancePlan.edges.length) return
     const timer = window.setTimeout(() => {
       ambulanceProgress.current = null
       setAmbulanceMovement(ambulancePlan.edges[0])
-    }, ambulanceDelay)
+    }, ambulanceDelay / playbackSpeed)
     return () => window.clearTimeout(timer)
-  }, [running, ambulanceMovement, ambulancePhase, ambulancePlan.edges, ambulanceDelay])
+  }, [running, ambulanceMovement, ambulancePhase, ambulancePlan.edges, ambulanceDelay, playbackSpeed])
 
   const finishMovement = (destination: number) => {
     const exitedVirtualNode = virtualSplit && movement?.source === virtualSplit.id
@@ -243,10 +244,11 @@ function App() {
     <header className="geo-header"><div><strong>AEGIS RESCUE</strong><span>Fire Station 6 · Palisades response loop</span></div><div className={`run-status ${running ? 'running' : ''}`}><i />{loadError ? 'DATA OFFLINE' : running ? missionLabel : phase === 'complete' ? 'MISSION COMPLETE' : graph ? 'READY' : 'LOADING DATA'}</div></header>
     <section className="geo-layout">
       <div className="map-shell">
-        {graph ? <PalisadesMap graph={graph} currentNode={currentNode} requiredSites={remainingSites} visitedSites={rescuedSites} compromisedSites={RESCUE_SITES} priorities={priorities} fire={fire} plan={plan} alternatives={plans} overview={!started && !movement && !ambulanceMovement} movement={movement} virtualNode={virtualSplit ? { id: virtualSplit.id, position: virtualSplit.position } : null} baseStation={FIRE_STATION} hospital={HOSPITAL} ambulanceNode={ambulanceNode} medicalSites={medicalCalls} collectedMedicalSites={collectedCalls} ambulancePlan={ambulancePlan} ambulanceMovement={ambulanceMovement} onMovementComplete={finishMovement} onMovementProgress={(progress) => { movementProgress.current = progress }} onAmbulanceComplete={finishAmbulanceMovement} onAmbulanceProgress={(progress) => { ambulanceProgress.current = progress }} /> : <div className="map-loading">{loadError || 'Loading rescue network…'}</div>}
+        {graph ? <PalisadesMap graph={graph} currentNode={currentNode} requiredSites={remainingSites} visitedSites={rescuedSites} compromisedSites={RESCUE_SITES} priorities={priorities} fire={fire} plan={plan} alternatives={plans} overview={!started && !movement && !ambulanceMovement} movement={movement} virtualNode={virtualSplit ? { id: virtualSplit.id, position: virtualSplit.position } : null} baseStation={FIRE_STATION} hospital={HOSPITAL} ambulanceNode={ambulanceNode} medicalSites={medicalCalls} collectedMedicalSites={collectedCalls} ambulancePlan={ambulancePlan} ambulanceMovement={ambulanceMovement} playbackSpeed={playbackSpeed} onMovementComplete={finishMovement} onMovementProgress={(progress) => { movementProgress.current = progress }} onAmbulanceComplete={finishAmbulanceMovement} onAmbulanceProgress={(progress) => { ambulanceProgress.current = progress }} /> : <div className="map-loading">{loadError || 'Loading rescue network…'}</div>}
         <div className="time-card"><span>{phase === 'returning' ? 'PEOPLE ONBOARD' : 'CURRENT TASK'}</span><strong>{missionLabel}</strong><small>{timestamp}</small></div>
         {latest?.type === 'fire_perimeter' && <div className="event-card"><span>FIRE UPDATE</span><strong>Perimeter expanded · edge weights recalculated</strong></div>}
         {interrupted && <div className="interrupt-card"><span>LIVE NODE INSERTED · N{currentNode}</span><strong>Road split here; choosing continue or retreat.</strong></div>}
+        <label className="speed-control"><span>SIMULATION SPEED <b>{playbackSpeed.toFixed(2)}×</b></span><input type="range" min="0.4" max="1.5" step="0.05" value={playbackSpeed} onChange={(event) => setPlaybackSpeed(Number(event.target.value))} /></label>
         <div className="map-legend"><span><i className="route-dot" />Fire truck</span><span><i className="ambulance-dot" />Ambulance</span><span><i className="exposed-dot" />In fire</span><span><i className="fire-dot" />Fire</span></div>
         <div className="geo-controls"><button className="primary" disabled={!graph || (phase === 'complete' && ambulancePhase === 'complete')} onClick={() => { setStarted(true); setRunning((value) => !value) }}>{running ? 'Pause rescue' : started ? 'Resume rescue' : 'Start rescue demo'}</button><button onClick={reset}>Reset</button></div>
       </div>
