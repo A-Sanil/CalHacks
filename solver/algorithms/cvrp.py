@@ -103,9 +103,23 @@ def solve_cvrp_ortools(
         index = manager.NodeToIndex(target.id)
         start, end = target.time_window
         time_dimension.CumulVar(index).SetRange(start, max(end, max_horizon))
-        # Penalty for skipping: higher priority targets cheaper to skip
-        penalty = int(round((100 - target.priority) * 1000))
-        routing.AddDisjunction([index], penalty)
+        if not target.required:
+            # Higher-priority evacuees must be more expensive to skip. Keep the
+            # penalty comfortably above ordinary scaled road costs.
+            penalty = int(round(target.priority * 100_000))
+            routing.AddDisjunction([index], penalty)
+
+    # The matrix may contain intermediate road/intersection nodes used only to
+    # calculate shortest-path travel costs. They are not delivery stops. Mark
+    # them freely skippable so OR-Tools visits vehicles' depots and evacuation
+    # targets instead of constructing a tour through the entire road graph.
+    mission_nodes = set(starts) | set(target_by_id)
+    for node in range(matrix.shape[0]):
+        if node in mission_nodes:
+            continue
+        index = manager.NodeToIndex(node)
+        if index >= 0:
+            routing.AddDisjunction([index], 0)
 
     search_params = pywrapcp.DefaultRoutingSearchParameters()
     search_params.first_solution_strategy = (

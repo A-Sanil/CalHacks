@@ -1,0 +1,43 @@
+.interrupt-card { position:absolute; z-index:3; top:78px; left:50%; transform:translateX(-50%); padding:11px 14px; border:1px solid #ff493d; background:#32140fed; box-shadow:0 8px 25px #0008; }
+.interrupt-card span { display:block; color:#ff6b55; font:7px DM Mono; letter-spacing:.12em; }
+.interrupt-card strong { display:block; margin-top:5px; font-size:10px; }
+.map-legend .alt-dot { height:2px; background:repeating-linear-gradient(90deg,#f4c66a 0 4px,transparent 4px 7px); }
+.geo-site.compromised { color:#ff8b78; }
+.geo-site.compromised>i { background:#ff493d; box-shadow:0 0 7px #ff493d; }
+.visit-order { display:flex; gap:6px; align-items:center; margin-bottom:6px!important; font-size:8px!important; }
+.visit-order b { color:var(--mint); }
+.visit-order em { margin-left:auto; color:#7f918b; font-style:normal; }
+.option-2 { color:#f4c66a!important; }
+.option-3 { color:#aab6c1!important; }
+.map-legend .exposed-dot { height:3px; background:linear-gradient(90deg,#ffb347,#d93232); }
+.weight-row { display:grid; grid-template-columns:1fr auto 42px; gap:8px; align-items:center; padding:5px 0; color:#9eb0aa; font:8px DM Mono; }
+.weight-row b { color:#6f827c; font-weight:400; }
+.weight-row strong { text-align:right; color:#d8e5e1; }
+.weight-row.exposed b,.weight-row.exposed strong { color:#ff815d; }
+.phase-banner { padding:12px; border:1px solid #315048; background:#0d1c18; }
+.phase-banner strong,.phase-banner span { display:block; }
+.phase-banner strong { color:var(--mint); font:10px DM Mono; letter-spacing:.05em; }
+.phase-banner span { margin-top:5px; color:#82958e; font-size:9px; }
+.phase-banner.returning { border-color:#d79543; background:#251b10; }
+.phase-banner.returning strong { color:#ffb85c; }
+.phase-banner.complete { border-color:#42e8c0; }
+.rescue-row { display:grid; grid-template-columns:25px 1fr auto; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #182923; }
+.rescue-row>i { width:21px; height:21px; display:grid; place-items:center; border-radius:50%; border:1px solid #ff654c; color:#ff765f; font:9px DM Mono; font-style:normal; }
+.rescue-row>span { color:#d0ded9; font-size:9px; }
+.rescue-row small { display:block; margin-top:2px; color:#768983; font:7px DM Mono; }
+.rescue-row>strong { color:#7d9089; font:7px DM Mono; }
+.rescue-row.active>i { color:#07100e; background:#ffb347; border-color:#ffb347; }
+.rescue-row.active>strong { color:#ffb347; }
+.rescue-row.rescued>i { color:#07100e; background:var(--mint); border-color:var(--mint); }
+.rescue-row.rescued>strong { color:var(--mint); }
+.time-card small { display:block; margin-top:4px; color:#788b84; font:7px DM Mono; }
+.map-legend .ambulance-dot { height:3px; background:#7c8cff; }
+.ambulance-panel { border-left:2px solid #7c8cff; padding-left:12px; }
+.ambulance-status { padding:9px; border:1px solid #384873; background:#11172a; }
+.ambulance-status strong,.ambulance-status span { display:block; }
+.ambulance-status strong { color:#9daaff; font:9px DM Mono; }
+.ambulance-status span { margin-top:4px; color:#7f8ca8; font:8px DM Mono; }
+.ambulance-status.returning { border-color:#aa72cf; background:#211328; }
+.ambulance-status.returning strong { color:#d895ff; }
+.capacity-track { height:5px; margin-top:8px; background:#252d47; }
+.capacity-track i { display:block; height:100%; background:linear-gradient(90deg,#6f8eff,#c16eff); transition:width .4s; }

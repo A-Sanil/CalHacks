@@ -19,6 +19,7 @@ export type TargetNode = {
   priority: number
   demand: number
   time_window: [number, number]
+  required?: boolean
 }
 
 export type EdgeModifier = {

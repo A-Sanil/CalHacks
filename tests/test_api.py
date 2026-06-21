@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from solver.api.app import app
-from solver.algorithms.ml_warmstart import train_warmstart_model
+from solver.algorithms.ml_warmstart import TORCH_AVAILABLE, train_warmstart_model
 
 
 def _payload() -> dict:
@@ -60,6 +60,7 @@ class TestAPI:
 
 
 class TestMLWarmstart:
+    @pytest.mark.skipif(not TORCH_AVAILABLE, reason="PyTorch is an optional dependency")
     def test_train_and_predict(self, tmp_path):
         model_path = tmp_path / "warmstart.pt"
         model = train_warmstart_model(epochs=2, n_instances=5, n_nodes=8, output_path=str(model_path))

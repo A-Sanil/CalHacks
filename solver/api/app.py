@@ -70,6 +70,7 @@ async def _solve_and_broadcast(payload: ProblemPayload) -> SolveResponse:
 
 
 VIZ_DIR = Path(__file__).resolve().parents[2] / "viz"
+PALISADES_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
 
 manager = ConnectionManager()
 _engine: SolverEngine | None = None
@@ -116,6 +117,8 @@ app.include_router(optimize_router)
 
 if VIZ_DIR.is_dir():
     app.mount("/viz", StaticFiles(directory=str(VIZ_DIR), html=True), name="viz")
+if PALISADES_DATA_DIR.is_dir():
+    app.mount("/data", StaticFiles(directory=str(PALISADES_DATA_DIR)), name="processed-data")
 
 
 @app.get("/")

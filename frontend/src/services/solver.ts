@@ -1,4 +1,5 @@
 import { fallbackResult } from '../data/scenario'
+import { hazardBlockedEdges } from '../simulation/graph'
 import type { HazardScenario, OptimizationRequest, OptimizationResult } from '../types'
 
 // Backend base URL. Override with VITE_SOLVER_API_URL at build/dev time.
@@ -22,6 +23,20 @@ const TARGETS: OptimizationRequest['target_nodes'] = [
   { id: 22, priority: 5.5, demand: 2, time_window: [0, 90] },
 ]
 
+// Focused point-to-point mission used by Run Next / Run All. These IDs match
+// the BASE and ECHO markers shown on the tactical map.
+const FOCUSED_FLEET: OptimizationRequest['vehicles'] = [
+  { id: 'SAR-01', type: 'ground_rescue', capacity: 24, start_node: 18 },
+]
+
+const requiredTargets = (nodeIds: number[]): OptimizationRequest['target_nodes'] => nodeIds.map((id, index) => ({
+  id,
+  priority: Math.max(7, 9.5 - index * 0.25),
+  demand: 1,
+  time_window: [0, 9999],
+  required: true,
+}))
+
 export type OptimizeOutcome = {
   result: OptimizationResult
   source: 'live' | 'offline'
@@ -30,9 +45,10 @@ export type OptimizeOutcome = {
 
 // Translate a hazard scenario into a solver contract: blocked edges become
 // near-infinite multipliers (closed roads); penalties become slowdown multipliers.
-export function buildRequestFromScenario(scenario: HazardScenario): OptimizationRequest {
+export function buildRequestFromScenario(scenario: HazardScenario, mode: 'focused' | 'fleet' = 'focused', requiredNodeIds: number[] = [5]): OptimizationRequest {
+  const closedEdges = hazardBlockedEdges(scenario)
   const modifiers: OptimizationRequest['dynamic_edge_modifiers'] = [
-    ...scenario.blockedEdges.map(([a, b]) => ({
+    ...closedEdges.map(([a, b]) => ({
       edge: [a, b] as [number, number],
       multiplier: 9999,
       reason: `${scenario.name}: road closed`,
@@ -46,8 +62,8 @@ export function buildRequestFromScenario(scenario: HazardScenario): Optimization
   return {
     timestamp: new Date().toISOString(),
     disaster_state: scenario.name,
-    vehicles: FLEET,
-    target_nodes: TARGETS,
+    vehicles: mode === 'fleet' ? FLEET : FOCUSED_FLEET,
+    target_nodes: requiredNodeIds.length ? requiredTargets(requiredNodeIds) : mode === 'fleet' ? TARGETS : [],
     dynamic_edge_modifiers: modifiers,
   }
 }

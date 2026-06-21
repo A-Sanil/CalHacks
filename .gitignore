@@ -9,3 +9,6 @@ models/
 dist/
 build/
 .env
+node_modules/
+*.log
+*.tsbuildinfo

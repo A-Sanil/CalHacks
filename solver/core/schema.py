@@ -18,6 +18,7 @@ class TargetNode(BaseModel):
     priority: float = Field(ge=0)
     demand: int = Field(ge=0)
     time_window: tuple[int, int]
+    required: bool = False
 
     @field_validator("time_window")
     @classmethod

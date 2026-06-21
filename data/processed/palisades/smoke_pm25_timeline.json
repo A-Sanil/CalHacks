@@ -1,0 +1,542 @@
+[
+  {
+    "date": "2025-01-07",
+    "station_id": "060370016",
+    "station_name": "Glendora - Laurel",
+    "pm25_ug_m3": 4.6,
+    "aqi": 26.0,
+    "latitude": 34.1439,
+    "longitude": -117.8508,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "060371103",
+    "station_name": "Los Angeles - N. Main Street",
+    "pm25_ug_m3": 18.8,
+    "aqi": 69.0,
+    "latitude": 34.066429,
+    "longitude": -118.226755,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "060371201",
+    "station_name": "Reseda",
+    "pm25_ug_m3": 5.5,
+    "aqi": 31.0,
+    "latitude": 34.1992,
+    "longitude": -118.5331,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "060371302",
+    "station_name": "Compton",
+    "pm25_ug_m3": 9.3,
+    "aqi": 51.0,
+    "latitude": 33.9014,
+    "longitude": -118.205,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "060376012",
+    "station_name": "Santa Clarita",
+    "pm25_ug_m3": 8.3,
+    "aqi": 46.0,
+    "latitude": 34.3833,
+    "longitude": -118.5283,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "060590007",
+    "station_name": "Anaheim",
+    "pm25_ug_m3": 9.6,
+    "aqi": 52.0,
+    "latitude": 33.830586,
+    "longitude": -117.938509,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "061110007",
+    "station_name": "Thousand Oaks - Moorpark Road",
+    "pm25_ug_m3": 2.8,
+    "aqi": 16.0,
+    "latitude": 34.21017,
+    "longitude": -118.87051,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "061110009",
+    "station_name": "Piru - Pacific",
+    "pm25_ug_m3": 4.9,
+    "aqi": 27.0,
+    "latitude": 34.40428,
+    "longitude": -118.80998,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "061111004",
+    "station_name": "Ojai - Ojai Ave.",
+    "pm25_ug_m3": 2.1,
+    "aqi": 12.0,
+    "latitude": 34.44806,
+    "longitude": -119.2313,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "061112002",
+    "station_name": "Simi Valley - Cochran Street",
+    "pm25_ug_m3": 4.4,
+    "aqi": 24.0,
+    "latitude": 34.27632,
+    "longitude": -118.68369,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "061113001",
+    "station_name": "El Rio - Rio Mesa School #2",
+    "pm25_ug_m3": 2.2,
+    "aqi": 12.0,
+    "latitude": 34.25239,
+    "longitude": -119.14318,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "840060374009",
+    "station_name": "Long Beach Signal Hill",
+    "pm25_ug_m3": 9.8,
+    "aqi": 52.0,
+    "latitude": 33.793713,
+    "longitude": -118.171019,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-07",
+    "station_id": "840060374010",
+    "station_name": "North Holywood",
+    "pm25_ug_m3": 13.3,
+    "aqi": 59.0,
+    "latitude": 34.181977,
+    "longitude": -118.363036,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "060371103",
+    "station_name": "Los Angeles - N. Main Street",
+    "pm25_ug_m3": 109.2,
+    "aqi": 189.0,
+    "latitude": 34.066429,
+    "longitude": -118.226755,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "060371201",
+    "station_name": "Reseda",
+    "pm25_ug_m3": 13.0,
+    "aqi": 58.0,
+    "latitude": 34.1992,
+    "longitude": -118.5331,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "060371302",
+    "station_name": "Compton",
+    "pm25_ug_m3": 48.7,
+    "aqi": 134.0,
+    "latitude": 33.9014,
+    "longitude": -118.205,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "060376012",
+    "station_name": "Santa Clarita",
+    "pm25_ug_m3": 8.1,
+    "aqi": 45.0,
+    "latitude": 34.3833,
+    "longitude": -118.5283,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "060590007",
+    "station_name": "Anaheim",
+    "pm25_ug_m3": 11.7,
+    "aqi": 56.0,
+    "latitude": 33.830586,
+    "longitude": -117.938509,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "061112002",
+    "station_name": "Simi Valley - Cochran Street",
+    "pm25_ug_m3": 5.9,
+    "aqi": 33.0,
+    "latitude": 34.27632,
+    "longitude": -118.68369,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "061113001",
+    "station_name": "El Rio - Rio Mesa School #2",
+    "pm25_ug_m3": 4.5,
+    "aqi": 25.0,
+    "latitude": 34.25239,
+    "longitude": -119.14318,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "840060374009",
+    "station_name": "Long Beach Signal Hill",
+    "pm25_ug_m3": 20.6,
+    "aqi": 72.0,
+    "latitude": 33.793713,
+    "longitude": -118.171019,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-08",
+    "station_id": "840060374010",
+    "station_name": "North Holywood",
+    "pm25_ug_m3": 3.5,
+    "aqi": 19.0,
+    "latitude": 34.181977,
+    "longitude": -118.363036,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "060371103",
+    "station_name": "Los Angeles - N. Main Street",
+    "pm25_ug_m3": 74.2,
+    "aqi": 164.0,
+    "latitude": 34.066429,
+    "longitude": -118.226755,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "060371201",
+    "station_name": "Reseda",
+    "pm25_ug_m3": 9.8,
+    "aqi": 52.0,
+    "latitude": 34.1992,
+    "longitude": -118.5331,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "060371302",
+    "station_name": "Compton",
+    "pm25_ug_m3": 51.6,
+    "aqi": 141.0,
+    "latitude": 33.9014,
+    "longitude": -118.205,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "060376012",
+    "station_name": "Santa Clarita",
+    "pm25_ug_m3": 4.6,
+    "aqi": 26.0,
+    "latitude": 34.3833,
+    "longitude": -118.5283,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "060590007",
+    "station_name": "Anaheim",
+    "pm25_ug_m3": 20.2,
+    "aqi": 72.0,
+    "latitude": 33.830586,
+    "longitude": -117.938509,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "061113001",
+    "station_name": "El Rio - Rio Mesa School #2",
+    "pm25_ug_m3": 2.0,
+    "aqi": 11.0,
+    "latitude": 34.25239,
+    "longitude": -119.14318,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "840060374009",
+    "station_name": "Long Beach Signal Hill",
+    "pm25_ug_m3": 36.2,
+    "aqi": 103.0,
+    "latitude": 33.793713,
+    "longitude": -118.171019,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-09",
+    "station_id": "840060374010",
+    "station_name": "North Holywood",
+    "pm25_ug_m3": 49.5,
+    "aqi": 135.0,
+    "latitude": 34.181977,
+    "longitude": -118.363036,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "060370016",
+    "station_name": "Glendora - Laurel",
+    "pm25_ug_m3": 29.9,
+    "aqi": 90.0,
+    "latitude": 34.1439,
+    "longitude": -117.8508,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "060371103",
+    "station_name": "Los Angeles - N. Main Street",
+    "pm25_ug_m3": 34.3,
+    "aqi": 98.0,
+    "latitude": 34.066429,
+    "longitude": -118.226755,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "060371201",
+    "station_name": "Reseda",
+    "pm25_ug_m3": 2.7,
+    "aqi": 16.0,
+    "latitude": 34.1992,
+    "longitude": -118.5331,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "060371302",
+    "station_name": "Compton",
+    "pm25_ug_m3": 47.7,
+    "aqi": 131.0,
+    "latitude": 33.9014,
+    "longitude": -118.205,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "060376012",
+    "station_name": "Santa Clarita",
+    "pm25_ug_m3": 5.9,
+    "aqi": 33.0,
+    "latitude": 34.3833,
+    "longitude": -118.5283,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "060590007",
+    "station_name": "Anaheim",
+    "pm25_ug_m3": 11.9,
+    "aqi": 56.0,
+    "latitude": 33.830586,
+    "longitude": -117.938509,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "061110007",
+    "station_name": "Thousand Oaks - Moorpark Road",
+    "pm25_ug_m3": 1.0,
+    "aqi": 6.0,
+    "latitude": 34.21017,
+    "longitude": -118.87051,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "061111004",
+    "station_name": "Ojai - Ojai Ave.",
+    "pm25_ug_m3": 4.3,
+    "aqi": 24.0,
+    "latitude": 34.44806,
+    "longitude": -119.2313,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "061113001",
+    "station_name": "El Rio - Rio Mesa School #2",
+    "pm25_ug_m3": 0.9,
+    "aqi": 5.0,
+    "latitude": 34.25239,
+    "longitude": -119.14318,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "840060374009",
+    "station_name": "Long Beach Signal Hill",
+    "pm25_ug_m3": 30.1,
+    "aqi": 90.0,
+    "latitude": 33.793713,
+    "longitude": -118.171019,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-10",
+    "station_id": "840060374010",
+    "station_name": "North Holywood",
+    "pm25_ug_m3": 25.0,
+    "aqi": 81.0,
+    "latitude": 34.181977,
+    "longitude": -118.363036,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "060370016",
+    "station_name": "Glendora - Laurel",
+    "pm25_ug_m3": 19.7,
+    "aqi": 71.0,
+    "latitude": 34.1439,
+    "longitude": -117.8508,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "060371103",
+    "station_name": "Los Angeles - N. Main Street",
+    "pm25_ug_m3": 27.2,
+    "aqi": 85.0,
+    "latitude": 34.066429,
+    "longitude": -118.226755,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "060371201",
+    "station_name": "Reseda",
+    "pm25_ug_m3": 3.7,
+    "aqi": 21.0,
+    "latitude": 34.1992,
+    "longitude": -118.5331,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "060371302",
+    "station_name": "Compton",
+    "pm25_ug_m3": 29.1,
+    "aqi": 88.0,
+    "latitude": 33.9014,
+    "longitude": -118.205,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "060376012",
+    "station_name": "Santa Clarita",
+    "pm25_ug_m3": 8.1,
+    "aqi": 45.0,
+    "latitude": 34.3833,
+    "longitude": -118.5283,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "060590007",
+    "station_name": "Anaheim",
+    "pm25_ug_m3": 14.7,
+    "aqi": 61.0,
+    "latitude": 33.830586,
+    "longitude": -117.938509,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "061110007",
+    "station_name": "Thousand Oaks - Moorpark Road",
+    "pm25_ug_m3": 7.7,
+    "aqi": 43.0,
+    "latitude": 34.21017,
+    "longitude": -118.87051,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "061110009",
+    "station_name": "Piru - Pacific",
+    "pm25_ug_m3": 3.3,
+    "aqi": 18.0,
+    "latitude": 34.40428,
+    "longitude": -118.80998,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "061111004",
+    "station_name": "Ojai - Ojai Ave.",
+    "pm25_ug_m3": 9.0,
+    "aqi": 50.0,
+    "latitude": 34.44806,
+    "longitude": -119.2313,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "061112002",
+    "station_name": "Simi Valley - Cochran Street",
+    "pm25_ug_m3": 5.1,
+    "aqi": 28.0,
+    "latitude": 34.27632,
+    "longitude": -118.68369,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "061113001",
+    "station_name": "El Rio - Rio Mesa School #2",
+    "pm25_ug_m3": 6.4,
+    "aqi": 36.0,
+    "latitude": 34.25239,
+    "longitude": -119.14318,
+    "agency": "Ventura County APCD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "840060374009",
+    "station_name": "Long Beach Signal Hill",
+    "pm25_ug_m3": 16.3,
+    "aqi": 64.0,
+    "latitude": 33.793713,
+    "longitude": -118.171019,
+    "agency": "South Coast AQMD"
+  },
+  {
+    "date": "2025-01-11",
+    "station_id": "840060374010",
+    "station_name": "North Holywood",
+    "pm25_ug_m3": 15.5,
+    "aqi": 63.0,
+    "latitude": 34.181977,
+    "longitude": -118.363036,
+    "agency": "South Coast AQMD"
+  }
+]

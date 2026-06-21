@@ -56,3 +56,43 @@ def test_optimize_svg_matches_node_coords():
     for route in r.json()["routes"]:
         commands = [tok for tok in route["svg_path"].split() if tok in ("M", "L")]
         assert len(commands) == len(route["ordered_nodes"])
+
+
+def test_single_target_does_not_visit_entire_road_graph():
+    """Intermediate road nodes may connect a route but are not CVRP stops."""
+    req = {
+        "timestamp": "2026-06-20T21:00:00Z",
+        "disaster_state": "Focused evacuation",
+        "vehicles": [
+            {"id": "SAR-01", "type": "ground", "capacity": 8, "start_node": 18},
+        ],
+        "target_nodes": [
+            {"id": 5, "priority": 9.5, "demand": 8, "time_window": [0, 90]},
+        ],
+        "dynamic_edge_modifiers": [],
+    }
+    r = client.post("/optimize", json=req)
+    assert r.status_code == 200
+    route = r.json()["routes"][0]["ordered_nodes"]
+    assert route[0] == 18 and route[-1] == 18
+    assert 5 in route
+    assert len(route) <= 12, "route incorrectly visits most road-graph nodes"
+
+
+def test_required_targets_are_all_visited():
+    req = {
+        "timestamp": "2026-06-20T21:00:00Z",
+        "disaster_state": "Multiple emergency calls",
+        "vehicles": [
+            {"id": "SAR-01", "type": "ground", "capacity": 24, "start_node": 18},
+        ],
+        "target_nodes": [
+            {"id": node, "priority": 9.0, "demand": 1, "time_window": [0, 9999], "required": True}
+            for node in (5, 11, 16)
+        ],
+        "dynamic_edge_modifiers": [],
+    }
+    r = client.post("/optimize", json=req)
+    assert r.status_code == 200
+    route = r.json()["routes"][0]["ordered_nodes"]
+    assert {5, 11, 16}.issubset(route)

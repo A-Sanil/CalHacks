@@ -29,6 +29,30 @@ const distance = (a: number, b: number) => Math.round(Math.hypot(point(a).x - po
 
 export const GRAPH_EDGES: GraphEdge[] = links.map(([from, to]) => ({ from, to, weight: distance(from, to) }))
 
+const segmentTouchesHazard = (edge: GraphEdge, scenario: HazardScenario) => {
+  const start = point(edge.from)
+  const end = point(edge.to)
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const lengthSquared = dx * dx + dy * dy
+  const projection = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1,
+    ((scenario.hazard.x - start.x) * dx + (scenario.hazard.y - start.y) * dy) / lengthSquared,
+  ))
+  const closestX = start.x + projection * dx
+  const closestY = start.y + projection * dy
+  // Small buffer treats the drawn road width as part of the hazard boundary.
+  return Math.hypot(closestX - scenario.hazard.x, closestY - scenario.hazard.y) <= scenario.hazard.radius + 5
+}
+
+export function hazardBlockedEdges(scenario: HazardScenario): Array<[number, number]> {
+  const blocked = new Map<string, [number, number]>()
+  for (const [from, to] of scenario.blockedEdges) blocked.set(edgeKey(from, to), [from, to])
+  for (const edge of GRAPH_EDGES) {
+    if (segmentTouchesHazard(edge, scenario)) blocked.set(edgeKey(edge.from, edge.to), [edge.from, edge.to])
+  }
+  return [...blocked.values()]
+}
+
 export const HAZARD_SCENARIOS: HazardScenario[] = [
   { id: 1, name: 'Fireline expansion', description: 'Primary diagonal corridor closed', blockedEdges: [[13,8],[8,3]], penalties: [], hazard: { x: 285, y: 205, radius: 76 } },
   { id: 2, name: 'Bridge collapse', description: 'Central crossing is impassable', blockedEdges: [[14,9],[9,4]], penalties: [], hazard: { x: 390, y: 230, radius: 60 } },
@@ -43,7 +67,8 @@ const edgeKey = (a: number, b: number) => a < b ? `${a}-${b}` : `${b}-${a}`
 
 export function runSimulation(scenario: HazardScenario): SimulationResult {
   const startTime = performance.now()
-  const blocked = new Set(scenario.blockedEdges.map(([a, b]) => edgeKey(a, b)))
+  const effectiveBlockedEdges = hazardBlockedEdges(scenario)
+  const blocked = new Set(effectiveBlockedEdges.map(([a, b]) => edgeKey(a, b)))
   const penalties = new Map(scenario.penalties.map(({ edge: [a, b], multiplier }) => [edgeKey(a, b), multiplier]))
   const distances = new Map<number, number>(GRAPH_NODES.map((node) => [node.id, Infinity]))
   const previous = new Map<number, number>()
@@ -84,7 +109,7 @@ export function runSimulation(scenario: HazardScenario): SimulationResult {
     svgPath,
     routeCost: Math.round(distances.get(5) ?? 0),
     nodesEvaluated: evaluated,
-    blockedEdges: scenario.blockedEdges.length,
+    blockedEdges: effectiveBlockedEdges.length,
     solveTimeMs: Math.max(1, Math.round(performance.now() - startTime)),
   }
 }
